@@ -2,7 +2,6 @@
 
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from pyrogram.enums import ParseMode
 import yt_dlp
 from youtubesearchpython import VideosSearch
 import requests
@@ -18,7 +17,7 @@ bot = Client(
 )
 
 @bot.on_message(filters.command(['start']))
-async def start(client, message):
+def start(client, message):
     TamilBots = (
         f'👋 Hello @{message.from_user.username}\n\n'
         'I Am 🎸 Song Play Bot\n\n'
@@ -26,7 +25,7 @@ async def start(client, message):
         'Type /s Song Name\n\n'
         'Eg. `/s Faded`'
     )
-    await message.reply_text(
+    message.reply_text(
         text=TamilBots,
         quote=False,
         reply_markup=InlineKeyboardMarkup([
@@ -38,13 +37,13 @@ async def start(client, message):
     )
 
 @bot.on_message(filters.command(['s']))
-async def search_song(client, message):
+def search_song(client, message):
     query = ' '.join(message.command[1:]).strip()
     if not query:
-        await message.reply_text('Please provide a song name. Example: `/s Faded`', quote=True)
+        message.reply_text('Please provide a song name. Example: `/s Faded`', quote=True)
         return
     
-    m = await message.reply_text('🔎 Searching the song...')
+    m = message.reply_text('🔎 Searching the song...')
     
     try:
         # YouTube Search
@@ -52,7 +51,7 @@ async def search_song(client, message):
         results = search.result()
         
         if not results['result']:
-            await m.edit('Found Nothing. Try Changing The Spelling A Little 😕')
+            m.edit('Found Nothing. Try Changing The Spelling A Little 😕')
             return
         
         video = results['result'][0]
@@ -63,7 +62,7 @@ async def search_song(client, message):
         views = video.get('viewCount', {}).get('text', 'Unknown')
         
         # Download thumbnail
-        thumb_name = f'thumb{message.id}.jpg'
+        thumb_name = f'thumb{message.message_id}.jpg'
         try:
             thumb = requests.get(thumbnail, timeout=10)
             with open(thumb_name, 'wb') as f:
@@ -71,20 +70,24 @@ async def search_song(client, message):
         except:
             thumb_name = None
         
-        await m.edit("🔎 Downloading song... Please wait ⏳️")
+        m.edit("🔎 Downloading song... Please wait ⏳️")
         
         # Download audio using yt-dlp
         ydl_opts = {
             'format': 'bestaudio/best',
-            'outtmpl': '%(title)s.%(ext)s',
+            'outtmpl': 'downloads/%(title)s.%(ext)s',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
-                'preferredquality': '320',
+                'preferredquality': '192',
             }],
             'quiet': True,
             'no_warnings': True
         }
+        
+        # Create downloads directory if not exists
+        if not os.path.exists('downloads'):
+            os.makedirs('downloads')
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(link, download=True)
@@ -100,20 +103,21 @@ async def search_song(client, message):
         )
         
         # Send audio
-        await message.reply_audio(
+        message.reply_audio(
             audio_file,
             caption=caption,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode="markdown",
             quote=False,
             title=title[:64],
+            duration=int(duration) if duration.isdigit() else 0,
             thumb=thumb_name if thumb_name and os.path.exists(thumb_name) else None
         )
         
-        await m.delete()
+        m.delete()
         
     except Exception as e:
         error_msg = str(e)[:100]
-        await m.edit(f'❌ Error: {error_msg}\n\nReport to @TamilSupport')
+        m.edit(f'❌ Error: {error_msg}\n\nReport to @TamilSupport')
         print(f"Error: {e}")
     
     finally:
